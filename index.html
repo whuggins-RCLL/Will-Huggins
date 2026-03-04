@@ -469,7 +469,14 @@
         });
 
         if (!response.ok) {
-          throw new Error('API request failed');
+          let errorMsg = `API request failed with status ${response.status}`;
+          try {
+            const errorData = await response.json();
+            if (errorData.error) errorMsg = errorData.error;
+          } catch (e) {
+            // Could not parse JSON error response
+          }
+          throw new Error(errorMsg);
         }
 
         const data = await response.json();
@@ -481,7 +488,7 @@
 
       } catch (error) {
         console.error(error);
-        showError("Something went wrong — please try again. If the problem continues, check your API key configuration in Vercel.");
+        showError(`Error: ${error.message}. Please check your Vercel logs for details.`);
       } finally {
         els.btnStyle.disabled = false;
         els.spinner.style.display = "none";

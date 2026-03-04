@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -13,9 +13,8 @@ export default async function handler(req, res) {
   }
 
   try {
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
+    const ai = new GoogleGenAI({ apiKey: apiKey });
+    
     const prompt = `
       You are a content formatter for a law school library website.
       Read the following content fields and return a single HTML snippet.
@@ -35,16 +34,21 @@ export default async function handler(req, res) {
       6. Format the CTA (if present) as an <a> tag styled to look like a button.
     `;
 
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    let text = response.text();
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+    });
+
+    let text = response.text;
     
     // Clean up markdown fences if present
-    text = text.replace(/```html/g, '').replace(/```/g, '');
+    if (text) {
+      text = text.replace(/```html/g, '').replace(/```/g, '');
+    }
 
     res.status(200).json({ html: text });
   } catch (error) {
     console.error('Gemini API Error:', error);
-    res.status(500).json({ error: 'Failed to generate content' });
+    res.status(500).json({ error: error.message || 'Failed to generate content' });
   }
 }

@@ -435,6 +435,43 @@
       resize: none;
       outline: none;
     }
+
+    /* Modal */
+    .modal {
+      display: none; 
+      position: fixed; 
+      z-index: 1000; 
+      left: 0;
+      top: 0;
+      width: 100%; 
+      height: 100%; 
+      overflow: auto; 
+      background-color: rgba(0,0,0,0.4); 
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-content {
+      background-color: #fefefe;
+      margin: 10% auto;
+      padding: 30px;
+      border: 1px solid #888;
+      width: 90%; 
+      max-width: 600px;
+      border-radius: 12px;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    }
+    .close {
+      color: #aaa;
+      float: right;
+      font-size: 28px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .close:hover { color: black; }
+    .modal h2 { margin-top: 0; margin-bottom: 20px; font-size: 1.5rem; font-weight: 700; color: #1a202c; }
+    .modal ul { padding-left: 20px; list-style-type: disc; }
+    .modal li { margin-bottom: 10px; color: #4a5568; line-height: 1.6; }
+    .modal b { color: #2d3748; }
   </style>
 </head>
 <body>
@@ -446,6 +483,11 @@
   <header>
     <h1>AI Learning Hub — Content Style Maker</h1>
     <h2>Turn your content into a styled web page — no coding required.</h2>
+    <div style="margin-top: 1rem;">
+      <button onclick="document.getElementById('helpModal').style.display='block'" class="btn-secondary" style="font-size: 0.9rem; padding: 0.5rem 1rem;">
+        <i class="fa-solid fa-circle-question" style="margin-right: 6px;"></i> How to Use
+      </button>
+    </div>
   </header>
 
   <main>
@@ -674,21 +716,15 @@
         // Load current HTML into editor
         const tmpl = templates.find(t => t.id === currentTemplateId);
         if (tmpl) {
-           // We want to edit the INNER content, not the full wrapper? 
-           // Actually, users might want to edit the full wrapper to change layout.
-           // But our system relies on `generatedHTML` being the content, and the wrapper being applied on top.
-           // Let's allow editing the `generatedHTML` part primarily? 
-           // No, "Canvas Mode" implies full control. 
-           // If they edit full HTML, we can't easily switch templates anymore.
-           // COMPROMISE: We show the `generatedHTML` (the content part) in the editor.
-           // They edit that. We re-render the wrapper around it.
-           els.htmlCodeEditor.value = generatedHTML;
+           // Render the full HTML with current settings so user sees exactly what they get
+           els.htmlCodeEditor.value = tmpl.render(generatedHTML, currentAccent, currentFont);
         }
       }
     };
 
     window.applyCodeChanges = () => {
       generatedHTML = els.htmlCodeEditor.value;
+      // Note: wrapHTML will now detect the full HTML and return it as is.
       switchView('visual');
     };
 
@@ -816,6 +852,11 @@
     // --- TEMPLATE RENDERING ---
     // Helper to wrap content in a full HTML document with Tailwind
     const wrapHTML = (content, accent, font, layoutType) => {
+      // 1. Check if content is already a full document
+      if (content.trim().toLowerCase().startsWith('<!doctype html')) {
+        return content;
+      }
+
       const fontUrl = font === 'serif' 
         ? 'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Source+Sans+Pro:wght@400;600&display=swap'
         : 'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap';
@@ -824,15 +865,35 @@
         ? "font-family: 'Source Sans Pro', sans-serif; h1, h2, h3 { font-family: 'Playfair Display', serif; }"
         : "font-family: 'Inter', sans-serif;";
 
+      // 2. Parse content to separate header/intro from body
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(content, 'text/html');
+      const h1 = doc.querySelector('h1');
+      const intro = doc.querySelector('p'); // First paragraph is intro
+      
+      let titleHTML = '';
+      let introHTML = '';
+      let bodyHTML = content;
+
+      if (h1) {
+        titleHTML = h1.outerHTML;
+        h1.remove();
+      }
+      if (intro) {
+        introHTML = intro.outerHTML;
+        intro.remove();
+      }
+      bodyHTML = doc.body.innerHTML;
+
       return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<script src="https://cdn.tailwindcss.com"><\/script>
+\x3Cscript src="https://cdn.tailwindcss.com">\x3C/script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <link href="${fontUrl}" rel="stylesheet">
-<script>
+\x3Cscript>
   tailwind.config = {
     theme: {
       extend: {
@@ -844,8 +905,9 @@
       }
     }
   }
-<\/script>
-<style>
+\x3C/script>
+\x3Cstyle>
+  html, body { height: 100%; margin: 0; padding: 0; }
   body { ${fontFamily} background-color: #FAF9F8; }
   .prose h1 { font-size: 2.25rem; font-weight: 700; margin-bottom: 1rem; color: #1a202c; }
   .prose h2 { font-size: 1.5rem; font-weight: 600; margin-top: 2rem; margin-bottom: 1rem; color: #2d3748; }
@@ -860,10 +922,10 @@
   ::-webkit-scrollbar-track { background: #f1f1f1; }
   ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 4px; }
   ::-webkit-scrollbar-thumb:hover { background: #aaa; }
-</style>
+\x3C/style>
 </head>
 <body class="antialiased p-4 md:p-8">
-  ${layoutType(content, accent)}
+  ${layoutType(titleHTML, introHTML, bodyHTML, accent)}
 </body>
 </html>`;
     };
@@ -875,16 +937,14 @@
 
     // Layouts
     const layouts = {
-      hero: (html, accent) => `
+      hero: (title, intro, body, accent) => `
         <div class="max-w-4xl mx-auto bg-white shadow-xl rounded-3xl overflow-hidden">
           <div class="relative h-64 sm:h-80 bg-accent overflow-hidden">
             <div class="absolute inset-0 bg-gradient-to-br from-black/60 via-accent/80 to-black/40"></div>
-            <div class="absolute inset-0 flex flex-col justify-center px-8 sm:px-12">
-              <div class="relative z-10">
-                <!-- We extract H1 and Intro from content if possible, otherwise render all -->
-                <div class="prose prose-invert max-w-none">
-                  ${html}
-                </div>
+            <div class="absolute inset-0 flex flex-col justify-center px-8 sm:px-12 text-center">
+              <div class="relative z-10 prose prose-invert max-w-none">
+                  ${title}
+                  ${intro}
               </div>
             </div>
             <!-- Decorative blobs -->
@@ -892,35 +952,27 @@
             <div class="absolute bottom-[-20%] right-[-10%] w-[60%] h-[80%] rounded-full bg-yellow-500/20 blur-3xl mix-blend-overlay"></div>
           </div>
           <div class="p-8 sm:p-12">
-             <!-- Content that isn't header/intro would go here ideally, but for now we render it all in the hero block or split it? 
-                  Let's just render the body content here if we can split it. 
-                  For simplicity in this version, we render the HTML directly. 
-                  To make it look like the example, we need to target specific elements.
-             -->
-             <div class="grid gap-6">
-                <!-- We use CSS to style the specific elements from the generic HTML -->
-                <style>
-                  /* Override generic prose for this specific layout */
-                  .prose h1 { color: white !important; font-size: 3rem !important; margin-bottom: 0.5rem !important; text-shadow: 0 2px 4px rgba(0,0,0,0.3); }
-                  .prose > p:first-of-type { color: rgba(255,255,255,0.9) !important; font-size: 1.25rem !important; max-width: 40rem; }
-                  .prose { max-width: none; }
-                  /* Hide H1 and Intro P from the white body area if we could separate them. 
-                     Since we can't easily without parsing, we style them to look good in the header 
-                     and let the rest flow. 
-                     Actually, the HTML is one blob. 
-                     Let's use a trick: The prompt puts everything in #content-wrapper.
-                  */
-                </style>
+             <div class="prose max-w-none">
+                ${body}
              </div>
+             \x3Cstyle>
+               /* Override generic prose for this specific layout */
+               .bg-accent .prose h1 { color: white !important; font-size: 3rem !important; margin-bottom: 0.5rem !important; text-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+               .bg-accent .prose p { color: rgba(255,255,255,0.9) !important; font-size: 1.25rem !important; max-width: 40rem; margin: 0 auto; }
+             \x3C/style>
           </div>
         </div>
       `,
-      cards: (html, accent) => `
+      cards: (title, intro, body, accent) => `
         <div class="max-w-6xl mx-auto">
           <div class="prose max-w-none mb-12 text-center">
-            ${html}
+            ${title}
+            ${intro}
           </div>
-          <style>
+          <div class="prose max-w-none">
+            ${body}
+          </div>
+          \x3Cstyle>
             /* Transform UL into Grid */
             ul {
               display: grid;
@@ -958,39 +1010,34 @@
             h1 { text-align: center; color: ${accent}; font-size: 3rem !important; }
             /* Style the Intro P */
             h1 + p { text-align: center; font-size: 1.25rem; max-width: 40rem; margin: 0 auto 3rem auto; color: #718096; }
-          </style>
+          \x3C/style>
         </div>
       `,
-      modern: (html, accent) => `
+      modern: (title, intro, body, accent) => `
         <div class="max-w-5xl mx-auto bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <div class="flex flex-col md:flex-row">
             <div class="bg-gray-50 p-8 md:w-1/3 border-r border-gray-100">
                <div class="sticky top-8">
                  <div class="h-1 w-12 bg-accent mb-6"></div>
-                 <!-- We want H1 and Callout here -->
-                 <style>
-                   .sidebar-content h1 { font-size: 2rem; line-height: 1.1; color: #1a202c; margin-bottom: 1.5rem; }
-                   .sidebar-content .callout { background: ${accent}; color: white; padding: 1.5rem; rounded: 0.5rem; font-style: italic; }
-                 </style>
-                 <div class="sidebar-content">
-                   <!-- This is a bit hacky, we rely on CSS to show/hide parts or just let it flow. 
-                        For a robust solution, we'd parse the HTML. 
-                        For now, let's just style the whole thing elegantly. -->
+                 <div class="sidebar-content prose">
+                   ${title}
+                   ${intro}
                  </div>
                  <!-- Fallback: Just a nice sidebar decoration -->
-                 <div class="text-4xl text-accent/20 font-serif font-bold">AI</div>
+                 <div class="text-4xl text-accent/20 font-serif font-bold mt-8">AI</div>
                </div>
             </div>
             <div class="p-8 md:p-12 md:w-2/3 prose max-w-none">
-              ${html}
+              ${body}
             </div>
           </div>
-          <style>
-            h1 { color: ${accent}; }
+          \x3Cstyle>
+            .sidebar-content h1 { font-size: 2rem; line-height: 1.1; color: #1a202c; margin-bottom: 1.5rem; }
+            .sidebar-content p { font-style: italic; color: #4a5568; }
             a { background: ${accent}; color: white !important; padding: 0.5rem 1.5rem; border-radius: 9999px; text-decoration: none !important; display: inline-block; margin-top: 1rem; font-weight: 600; }
             a:hover { opacity: 0.9; }
             .callout { border-left: 4px solid ${accent}; background: #f7fafc; padding: 1rem; font-style: italic; color: #4a5568; }
-          </style>
+          \x3C/style>
         </div>
       `
     };
@@ -1014,50 +1061,56 @@
       {
         id: 'minimal',
         name: 'Clean Minimal',
-        render: (html, accent, font) => wrapHTML(html, accent, font, (h, a) => `
+        render: (html, accent, font) => wrapHTML(html, accent, font, (t, i, b, a) => `
           <div class="max-w-3xl mx-auto">
             <div class="prose prose-lg max-w-none">
-              ${h}
+              ${t}
+              ${i}
+              ${b}
             </div>
-            <style>
+            \x3Cstyle>
               h1 { font-weight: 300; letter-spacing: -0.025em; color: #1a202c; border-bottom: 1px solid #e2e8f0; padding-bottom: 1.5rem; }
               a { color: ${a}; font-weight: 500; }
               ul li::marker { color: ${a}; }
-            </style>
+            \x3C/style>
           </div>
         `)
       },
       {
         id: 'newsletter',
         name: 'Newsletter',
-        render: (html, accent, font) => wrapHTML(html, accent, font, (h, a) => `
+        render: (html, accent, font) => wrapHTML(html, accent, font, (t, i, b, a) => `
           <div class="max-w-2xl mx-auto bg-white p-8 border-t-8 border-accent shadow-lg">
             <div class="prose max-w-none">
-              ${h}
+              ${t}
+              ${i}
+              ${b}
             </div>
-            <style>
+            \x3Cstyle>
               body { background: #f3f4f6; }
               h1 { text-align: center; font-family: serif; font-style: italic; color: #1a202c; }
               .callout { background: ${a}15; border: 1px solid ${a}30; padding: 1.5rem; border-radius: 0.5rem; text-align: center; font-weight: 500; color: ${a}; }
-            </style>
+            \x3C/style>
           </div>
         `)
       },
       {
         id: 'dark-mode',
         name: 'Dark Mode',
-        render: (html, accent, font) => wrapHTML(html, accent, font, (h, a) => `
+        render: (html, accent, font) => wrapHTML(html, accent, font, (t, i, b, a) => `
           <div class="max-w-4xl mx-auto">
             <div class="prose prose-invert max-w-none">
-              ${h}
+              ${t}
+              ${i}
+              ${b}
             </div>
-            <style>
+            \x3Cstyle>
               body { background: #1a202c; color: #e2e8f0; }
               h1, h2, h3 { color: white !important; }
               p, li { color: #cbd5e0 !important; }
               a { color: ${a} !important; }
               .callout { border: 1px solid ${a}; background: ${a}20; padding: 1rem; border-radius: 0.5rem; }
-            </style>
+            \x3C/style>
           </div>
         `)
       }
@@ -1153,6 +1206,29 @@
 
     // Init
     loadDraft();
+    
+    // Close modal when clicking outside
+    window.onclick = function(event) {
+      const modal = document.getElementById('helpModal');
+      if (event.target == modal) {
+        modal.style.display = "none";
+      }
+    }
   </script>
+
+  <!-- Help Modal -->
+  <div id="helpModal" class="modal">
+    <div class="modal-content">
+      <span class="close" onclick="document.getElementById('helpModal').style.display='none'">&times;</span>
+      <h2>How to Use</h2>
+      <ul>
+        <li><b>Start from Scratch:</b> Fill in the fields. The AI will generate a styled page.</li>
+        <li><b>Refine HTML:</b> Paste existing HTML to improve it.</li>
+        <li><b>Customize:</b> Use the panel to change colors, fonts, and layouts.</li>
+        <li><b>Code Editor:</b> Switch to "Code Editor" to tweak the final HTML.</li>
+        <li><b>Export:</b> Click "Copy to Google Sites" to get the embed code.</li>
+      </ul>
+    </div>
+  </div>
 </body>
 </html>

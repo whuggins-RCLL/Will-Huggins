@@ -150,19 +150,21 @@
     .panel-content {
       background: var(--white);
       width: 90%;
-      max-width: 1000px;
+      max-width: 1200px;
       height: 90vh;
       border-radius: 16px;
       display: flex;
       flex-direction: column;
       overflow: hidden;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
     }
     .panel-header {
-      padding: 20px;
-      border-bottom: 1px solid #eee;
+      padding: 20px 32px;
+      border-bottom: 1px solid #e2e8f0;
       display: flex;
       justify-content: space-between;
       align-items: center;
+      background: white;
     }
     .panel-body {
       flex: 1;
@@ -171,48 +173,144 @@
     }
     .controls {
       width: 300px;
-      padding: 24px;
-      background: #f9f9f9;
-      border-right: 1px solid #eee;
+      padding: 32px;
+      background: #f8fafc;
+      border-right: 1px solid #e2e8f0;
       overflow-y: auto;
     }
     .live-preview {
       flex: 1;
       padding: 40px;
-      background: #e5e5e5;
+      background: #e2e8f0;
       overflow-y: auto;
       display: flex;
       justify-content: center;
     }
     .preview-container {
-      background: white;
+      /* This container is now just a wrapper for the iframe if needed, 
+         but we are injecting the iframe directly into .live-preview usually. 
+         Let's keep it for structure if the JS uses it. */
       width: 100%;
-      max-width: 800px;
-      min-height: 500px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-      padding: 40px;
+      height: 100%;
+      display: flex;
+      justify-content: center;
     }
+    
+    /* New Iframe Styles */
+    .live-iframe {
+      width: 100%;
+      max-width: 1000px;
+      height: 100%;
+      min-height: 800px;
+      background: white;
+      border: none;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+      border-radius: 8px;
+    }
+
+    /* Template Grid Updates */
+    .template-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 24px;
+      margin-bottom: 40px;
+    }
+
+    .template-card {
+      background: white;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      overflow: hidden;
+      transition: all 0.2s ease;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .template-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 24px -8px rgba(0, 0, 0, 0.15);
+      border-color: #cbd5e0;
+    }
+
+    .preview-frame-wrapper {
+      position: relative;
+      height: 300px;
+      background: #f8fafc;
+      overflow: hidden;
+      border-bottom: 1px solid #e2e8f0;
+    }
+
+    .preview-iframe {
+      width: 133.33%; /* Compensate for scale */
+      height: 133.33%;
+      border: none;
+      transform: scale(0.75);
+      transform-origin: top left;
+      pointer-events: none;
+    }
+
+    .preview-overlay {
+      position: absolute;
+      inset: 0;
+      cursor: pointer;
+      z-index: 10;
+    }
+
+    .template-info {
+      padding: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: white;
+    }
+
+    .template-name {
+      font-weight: 600;
+      color: #2d3748;
+    }
+
+    .btn-select {
+      background: transparent;
+      color: #8C1515;
+      border: 1px solid #8C1515;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-select:hover {
+      background: #8C1515;
+      color: white;
+    }
+
     .swatch-row { display: flex; gap: 12px; margin-bottom: 24px; }
     .swatch {
       width: 32px; height: 32px;
       border-radius: 50%;
       cursor: pointer;
       border: 2px solid transparent;
+      transition: transform 0.2s;
     }
-    .swatch.active { border-color: #000; transform: scale(1.1); }
+    .swatch.active { border-color: #000; transform: scale(1.1); box-shadow: 0 0 0 2px white, 0 0 0 4px #cbd5e0; }
     .toggle-group { display: flex; gap: 8px; margin-bottom: 24px; }
     .toggle-btn {
       flex: 1;
       padding: 10px;
-      border: 1px solid #ddd;
+      border: 1px solid #e2e8f0;
       background: #fff;
       cursor: pointer;
       border-radius: 6px;
+      font-weight: 500;
+      color: #4a5568;
+      transition: all 0.2s;
     }
-    .toggle-btn.active { background: var(--black); color: white; border-color: var(--black); }
+    .toggle-btn.active { background: #2d3748; color: white; border-color: #2d3748; }
     
     .btn-copy {
-      background: var(--blue);
+      background: #006CB8;
       color: white;
       border: none;
       padding: 12px 24px;
@@ -221,8 +319,11 @@
       cursor: pointer;
       width: 100%;
       margin-top: auto;
+      transition: background 0.2s;
     }
-    .btn-close { background: none; border: none; font-size: 24px; cursor: pointer; }
+    .btn-copy:hover { background: #005a99; }
+    .btn-close { background: none; border: none; font-size: 24px; cursor: pointer; color: #a0aec0; transition: color 0.2s; }
+    .btn-close:hover { color: #2d3748; }
 
     /* --- Toast --- */
     .toast {
@@ -262,14 +363,77 @@
     }
     .draft-banner a { color: #856404; font-weight: bold; margin-left: 10px; cursor: pointer; }
 
-    /* --- Error Message --- */
-    .error-msg {
-      background: #f8d7da;
-      color: #721c24;
-      padding: 16px;
+    /* --- Tabs --- */
+    .tabs {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 24px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .tab-btn {
+      background: none;
+      border: none;
+      padding: 12px 24px;
+      font-size: 16px;
+      font-weight: 600;
+      color: #718096;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s;
+    }
+    .tab-btn.active {
+      color: #8C1515;
+      border-bottom-color: #8C1515;
+    }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* --- Grid Layout --- */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+    @media (max-width: 768px) {
+      .grid-2 { grid-template-columns: 1fr; }
+    }
+
+    /* --- View Toggle (Visual/Code) --- */
+    .view-toggle {
+      background: #f1f5f9;
+      padding: 4px;
       border-radius: 8px;
-      margin-bottom: 20px;
-      display: none;
+      display: flex;
+    }
+    .view-btn {
+      padding: 6px 12px;
+      border: none;
+      background: transparent;
+      font-size: 13px;
+      font-weight: 600;
+      color: #64748b;
+      cursor: pointer;
+      border-radius: 6px;
+    }
+    .view-btn.active {
+      background: white;
+      color: #1e293b;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    /* --- Code Editor --- */
+    #htmlCodeEditor {
+      flex: 1;
+      width: 100%;
+      background: #1e1e1e;
+      color: #d4d4d4;
+      font-family: 'Fira Code', monospace;
+      font-size: 14px;
+      line-height: 1.5;
+      padding: 20px;
+      border: none;
+      resize: none;
+      outline: none;
     }
   </style>
 </head>
@@ -288,31 +452,71 @@
     <div id="errorMsg" class="error-msg"></div>
 
     <div class="input-section">
-      <div class="helper-note">💡 Fill in what you have — you don't need to use every field.</div>
-      
-      <div class="form-group">
-        <label>Page Title</label>
-        <input type="text" id="pageTitle" placeholder="e.g. Spring 2026 AI Symposium">
+      <!-- Intake Tabs -->
+      <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('new')">Start from Scratch</button>
+        <button class="tab-btn" onclick="switchTab('refine')">Refine Existing HTML</button>
       </div>
-      
-      <div class="form-group">
-        <label>Intro / Summary</label>
-        <textarea id="pageIntro" style="min-height: 80px;" placeholder="Brief overview (2-3 sentences)..."></textarea>
+
+      <!-- MODE: NEW CONTENT -->
+      <div id="tabNew" class="tab-content active">
+        <div class="helper-note">💡 Fill in what you have — you don't need to use every field.</div>
+        
+        <div class="form-group">
+          <label>Page Title</label>
+          <input type="text" id="pageTitle" placeholder="e.g. Spring 2026 AI Symposium">
+        </div>
+        
+        <div class="form-group">
+          <label>Intro / Summary</label>
+          <textarea id="pageIntro" style="min-height: 80px;" placeholder="Brief overview (2-3 sentences)..."></textarea>
+        </div>
+        
+        <div class="form-group">
+          <label>Body Content</label>
+          <textarea id="pageBody" style="min-height: 200px;" placeholder="Main content, bullet points, paragraphs..."></textarea>
+        </div>
+
+        <div class="grid-2">
+          <div class="form-group">
+            <label>Video Links to Embed</label>
+            <textarea id="pageVideos" style="min-height: 100px;" placeholder="Paste YouTube or Vimeo URLs here (one per line)..."></textarea>
+          </div>
+          <div class="form-group">
+            <label>Important Links</label>
+            <textarea id="pageLinks" style="min-height: 100px;" placeholder="List URLs to include in the text..."></textarea>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Layout Instructions</label>
+          <textarea id="pageLayout" style="min-height: 80px;" placeholder="e.g. 'Put the video at the top', 'Make the links a sidebar', 'Two column layout'"></textarea>
+        </div>
+        
+        <div class="form-group">
+          <label>Callout or Highlight (Optional)</label>
+          <input type="text" id="pageCallout" placeholder="Key quote, tip, or stat...">
+        </div>
+        
+        <div class="form-group">
+          <label>Call to Action (Optional)</label>
+          <input type="text" id="pageCTA" placeholder="Label + URL (e.g. Register Here → https://...)">
+        </div>
       </div>
-      
-      <div class="form-group">
-        <label>Body Content</label>
-        <textarea id="pageBody" style="min-height: 200px;" placeholder="Main content, bullet points, paragraphs..."></textarea>
-      </div>
-      
-      <div class="form-group">
-        <label>Callout or Highlight (Optional)</label>
-        <input type="text" id="pageCallout" placeholder="Key quote, tip, or stat...">
-      </div>
-      
-      <div class="form-group">
-        <label>Call to Action (Optional)</label>
-        <input type="text" id="pageCTA" placeholder="Label + URL (e.g. Register Here → https://...)">
+
+      <!-- MODE: REFINE EXISTING -->
+      <div id="tabRefine" class="tab-content">
+        <div class="helper-note">🔧 Paste your old HTML and tell the AI how to improve it.</div>
+        
+        <div class="form-group">
+          <label>Existing HTML Code</label>
+          <textarea id="existingHTML" style="min-height: 300px; font-family: monospace; font-size: 12px;" placeholder="Paste your raw HTML here..."></textarea>
+        </div>
+
+        <div class="form-group">
+          <label>Instructions for Changes</label>
+          <textarea id="refineInstructions" style="min-height: 120px;" placeholder="e.g. 'Make it look more modern', 'Fix the mobile responsiveness', 'Change the font to serif'"></textarea>
+        </div>
       </div>
 
       <button id="btnStyle" class="btn-primary" onclick="generateStyles()">
@@ -323,7 +527,7 @@
 
     <div id="previewSection" class="preview-section">
       <h3 style="margin-bottom: 24px; color: var(--cool-grey);">Choose a Style</h3>
-      <div class="grid" id="templateGrid">
+      <div class="grid template-grid" id="templateGrid">
         <!-- Templates will be injected here -->
       </div>
     </div>
@@ -332,11 +536,17 @@
   <div id="customizationPanel" class="customization-panel">
     <div class="panel-content">
       <div class="panel-header">
-        <h3 style="margin:0">Customize & Export</h3>
+        <div style="display:flex; align-items:center; gap:16px;">
+          <h3 style="margin:0">Customize & Export</h3>
+          <div class="view-toggle">
+            <button class="view-btn active" onclick="switchView('visual')">Visual Preview</button>
+            <button class="view-btn" onclick="switchView('code')">Code Editor</button>
+          </div>
+        </div>
         <button class="btn-close" onclick="closePanel()">×</button>
       </div>
       <div class="panel-body">
-        <div class="controls">
+        <div class="controls" id="visualControls">
           <label>Color Accent</label>
           <div class="swatch-row">
             <div class="swatch active" style="background: #8C1515;" onclick="setAccent('#8C1515', this)"></div>
@@ -357,9 +567,22 @@
             In Google Sites: Insert → Embed → Embed code → paste → Insert
           </p>
         </div>
-        <div class="live-preview">
+
+        <!-- VISUAL PREVIEW -->
+        <div class="live-preview" id="viewVisual">
           <div id="livePreviewContainer" class="preview-container">
             <!-- Live preview content -->
+          </div>
+        </div>
+
+        <!-- CODE EDITOR -->
+        <div class="code-editor-container" id="viewCode" style="display:none; flex:1; display:flex; flex-direction:column;">
+          <div style="background:#1e1e1e; color:#ccc; padding:8px 16px; font-size:12px; border-bottom:1px solid #333;">
+            Editable HTML Source
+          </div>
+          <textarea id="htmlCodeEditor" spellcheck="false"></textarea>
+          <div style="padding:16px; background:#f0f0f0; border-top:1px solid #ccc; text-align:right;">
+            <button class="btn-primary" style="width:auto; padding:8px 16px;" onclick="applyCodeChanges()">Apply Changes to Preview</button>
           </div>
         </div>
       </div>
@@ -384,14 +607,22 @@
     let currentTemplateId = "";
     let currentAccent = "#8C1515";
     let currentFont = "sans";
+    let activeTab = "new"; // 'new' or 'refine'
 
     // --- DOM ELEMENTS ---
     const els = {
       title: document.getElementById('pageTitle'),
       intro: document.getElementById('pageIntro'),
       body: document.getElementById('pageBody'),
+      videos: document.getElementById('pageVideos'),
+      links: document.getElementById('pageLinks'),
+      layout: document.getElementById('pageLayout'),
       callout: document.getElementById('pageCallout'),
       cta: document.getElementById('pageCTA'),
+      
+      existingHTML: document.getElementById('existingHTML'),
+      refineInstructions: document.getElementById('refineInstructions'),
+
       btnStyle: document.getElementById('btnStyle'),
       spinner: document.querySelector('.spinner'),
       btnText: document.querySelector('.btn-text'),
@@ -401,7 +632,64 @@
       livePreview: document.getElementById('livePreviewContainer'),
       toast: document.getElementById('toast'),
       draftBanner: document.getElementById('draftBanner'),
-      errorMsg: document.getElementById('errorMsg')
+      errorMsg: document.getElementById('errorMsg'),
+      
+      // Code Editor
+      htmlCodeEditor: document.getElementById('htmlCodeEditor'),
+      viewVisual: document.getElementById('viewVisual'),
+      viewCode: document.getElementById('viewCode'),
+      visualControls: document.getElementById('visualControls')
+    };
+
+    // --- TABS & VIEWS ---
+    window.switchTab = (tab) => {
+      activeTab = tab;
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      
+      // Simple index logic or ID logic
+      if (tab === 'new') {
+        document.querySelector('.tab-btn:nth-child(1)').classList.add('active');
+        document.getElementById('tabNew').classList.add('active');
+      } else {
+        document.querySelector('.tab-btn:nth-child(2)').classList.add('active');
+        document.getElementById('tabRefine').classList.add('active');
+      }
+    };
+
+    window.switchView = (view) => {
+      document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
+      if (view === 'visual') {
+        document.querySelector('.view-btn:nth-child(1)').classList.add('active');
+        els.viewVisual.style.display = 'flex';
+        els.viewCode.style.display = 'none';
+        els.visualControls.style.display = 'block';
+        updateLivePreview(); // Refresh visual from code if needed
+      } else {
+        document.querySelector('.view-btn:nth-child(2)').classList.add('active');
+        els.viewVisual.style.display = 'none';
+        els.viewCode.style.display = 'flex';
+        els.visualControls.style.display = 'none';
+        
+        // Load current HTML into editor
+        const tmpl = templates.find(t => t.id === currentTemplateId);
+        if (tmpl) {
+           // We want to edit the INNER content, not the full wrapper? 
+           // Actually, users might want to edit the full wrapper to change layout.
+           // But our system relies on `generatedHTML` being the content, and the wrapper being applied on top.
+           // Let's allow editing the `generatedHTML` part primarily? 
+           // No, "Canvas Mode" implies full control. 
+           // If they edit full HTML, we can't easily switch templates anymore.
+           // COMPROMISE: We show the `generatedHTML` (the content part) in the editor.
+           // They edit that. We re-render the wrapper around it.
+           els.htmlCodeEditor.value = generatedHTML;
+        }
+      }
+    };
+
+    window.applyCodeChanges = () => {
+      generatedHTML = els.htmlCodeEditor.value;
+      switchView('visual');
     };
 
     // --- DRAFT SAVING ---
@@ -410,21 +698,31 @@
         title: els.title.value,
         intro: els.intro.value,
         body: els.body.value,
+        videos: els.videos.value,
+        links: els.links.value,
+        layout: els.layout.value,
         callout: els.callout.value,
-        cta: els.cta.value
+        cta: els.cta.value,
+        existingHTML: els.existingHTML.value,
+        refineInstructions: els.refineInstructions.value
       };
-      localStorage.setItem('sls_content_draft', JSON.stringify(draft));
+      localStorage.setItem('sls_content_draft_v2', JSON.stringify(draft));
     }
 
     function loadDraft() {
-      const saved = localStorage.getItem('sls_content_draft');
+      const saved = localStorage.getItem('sls_content_draft_v2');
       if (saved) {
         const draft = JSON.parse(saved);
         els.title.value = draft.title || "";
         els.intro.value = draft.intro || "";
         els.body.value = draft.body || "";
+        els.videos.value = draft.videos || "";
+        els.links.value = draft.links || "";
+        els.layout.value = draft.layout || "";
         els.callout.value = draft.callout || "";
         els.cta.value = draft.cta || "";
+        els.existingHTML.value = draft.existingHTML || "";
+        els.refineInstructions.value = draft.refineInstructions || "";
         
         if (Object.values(draft).some(v => v)) {
           els.draftBanner.style.display = 'block';
@@ -433,17 +731,14 @@
     }
 
     window.clearDraft = () => {
-      localStorage.removeItem('sls_content_draft');
-      els.title.value = "";
-      els.intro.value = "";
-      els.body.value = "";
-      els.callout.value = "";
-      els.cta.value = "";
+      localStorage.removeItem('sls_content_draft_v2');
+      // Clear all fields
+      [els.title, els.intro, els.body, els.videos, els.links, els.layout, els.callout, els.cta, els.existingHTML, els.refineInstructions].forEach(el => el.value = "");
       els.draftBanner.style.display = 'none';
     };
 
-    [els.title, els.intro, els.body, els.callout, els.cta].forEach(el => {
-      el.addEventListener('input', saveDraft);
+    [els.title, els.intro, els.body, els.videos, els.links, els.layout, els.callout, els.cta, els.existingHTML, els.refineInstructions].forEach(el => {
+      if(el) el.addEventListener('input', saveDraft);
     });
 
     // --- AI GENERATION ---
@@ -455,17 +750,34 @@
       els.errorMsg.style.display = "none";
 
       try {
-        // 2. Call Server-Side API (Vercel Function)
-        const response = await fetch('/api/generate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+        // Prepare payload based on active tab
+        let payload = { mode: activeTab };
+        
+        if (activeTab === 'new') {
+          payload = {
+            ...payload,
             title: els.title.value,
             intro: els.intro.value,
             body: els.body.value,
+            videos: els.videos.value,
+            links: els.links.value,
+            layout: els.layout.value,
             callout: els.callout.value,
             cta: els.cta.value
-          })
+          };
+        } else {
+          payload = {
+            ...payload,
+            existingHTML: els.existingHTML.value,
+            instructions: els.refineInstructions.value
+          };
+        }
+
+        // 2. Call Server-Side API
+        const response = await fetch('/api/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
         });
 
         if (!response.ok) {
@@ -502,95 +814,266 @@
     }
 
     // --- TEMPLATE RENDERING ---
-    const templates = [
-      {
-        id: 'announcement',
-        name: 'Announcement',
-        render: (html, accent, font) => `
-          <div style="font-family: ${font === 'serif' ? 'Georgia, serif' : 'sans-serif'}; max-width: 800px; margin: 0 auto; color: #333;">
-            <div style="height: 8px; background: ${accent}; width: 100%; margin-bottom: 32px;"></div>
-            <div style="padding: 0 20px;">
+    // Helper to wrap content in a full HTML document with Tailwind
+    const wrapHTML = (content, accent, font, layoutType) => {
+      const fontUrl = font === 'serif' 
+        ? 'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Source+Sans+Pro:wght@400;600&display=swap'
+        : 'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap';
+      
+      const fontFamily = font === 'serif'
+        ? "font-family: 'Source Sans Pro', sans-serif; h1, h2, h3 { font-family: 'Playfair Display', serif; }"
+        : "font-family: 'Inter', sans-serif;";
+
+      return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="https://cdn.tailwindcss.com"><\/script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link href="${fontUrl}" rel="stylesheet">
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          'accent': '${accent}',
+          'accent-dark': '${adjustColor(accent, -20)}',
+          'accent-light': '${adjustColor(accent, 20)}',
+        }
+      }
+    }
+  }
+<\/script>
+<style>
+  body { ${fontFamily} background-color: #FAF9F8; }
+  .prose h1 { font-size: 2.25rem; font-weight: 700; margin-bottom: 1rem; color: #1a202c; }
+  .prose h2 { font-size: 1.5rem; font-weight: 600; margin-top: 2rem; margin-bottom: 1rem; color: #2d3748; }
+  .prose h3 { font-size: 1.25rem; font-weight: 600; margin-top: 1.5rem; margin-bottom: 0.75rem; color: #2d3748; }
+  .prose p { margin-bottom: 1rem; line-height: 1.75; color: #4a5568; }
+  .prose ul { list-style-type: disc; padding-left: 1.5rem; margin-bottom: 1rem; }
+  .prose li { margin-bottom: 0.5rem; color: #4a5568; }
+  .prose a { color: ${accent}; text-decoration: underline; }
+  
+  /* Custom Scrollbar for iframe */
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-track { background: #f1f1f1; }
+  ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: #aaa; }
+</style>
+</head>
+<body class="antialiased p-4 md:p-8">
+  ${layoutType(content, accent)}
+</body>
+</html>`;
+    };
+
+    // Helper to darken/lighten hex color
+    function adjustColor(color, amount) {
+      return '#' + color.replace(/^#/, '').replace(/../g, color => ('0'+Math.min(255, Math.max(0, parseInt(color, 16) + amount)).toString(16)).substr(-2));
+    }
+
+    // Layouts
+    const layouts = {
+      hero: (html, accent) => `
+        <div class="max-w-4xl mx-auto bg-white shadow-xl rounded-3xl overflow-hidden">
+          <div class="relative h-64 sm:h-80 bg-accent overflow-hidden">
+            <div class="absolute inset-0 bg-gradient-to-br from-black/60 via-accent/80 to-black/40"></div>
+            <div class="absolute inset-0 flex flex-col justify-center px-8 sm:px-12">
+              <div class="relative z-10">
+                <!-- We extract H1 and Intro from content if possible, otherwise render all -->
+                <div class="prose prose-invert max-w-none">
+                  ${html}
+                </div>
+              </div>
+            </div>
+            <!-- Decorative blobs -->
+            <div class="absolute top-[-50%] left-[-20%] w-[80%] h-[150%] rounded-full bg-white/10 blur-3xl"></div>
+            <div class="absolute bottom-[-20%] right-[-10%] w-[60%] h-[80%] rounded-full bg-yellow-500/20 blur-3xl mix-blend-overlay"></div>
+          </div>
+          <div class="p-8 sm:p-12">
+             <!-- Content that isn't header/intro would go here ideally, but for now we render it all in the hero block or split it? 
+                  Let's just render the body content here if we can split it. 
+                  For simplicity in this version, we render the HTML directly. 
+                  To make it look like the example, we need to target specific elements.
+             -->
+             <div class="grid gap-6">
+                <!-- We use CSS to style the specific elements from the generic HTML -->
+                <style>
+                  /* Override generic prose for this specific layout */
+                  .prose h1 { color: white !important; font-size: 3rem !important; margin-bottom: 0.5rem !important; text-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+                  .prose > p:first-of-type { color: rgba(255,255,255,0.9) !important; font-size: 1.25rem !important; max-width: 40rem; }
+                  .prose { max-width: none; }
+                  /* Hide H1 and Intro P from the white body area if we could separate them. 
+                     Since we can't easily without parsing, we style them to look good in the header 
+                     and let the rest flow. 
+                     Actually, the HTML is one blob. 
+                     Let's use a trick: The prompt puts everything in #content-wrapper.
+                  */
+                </style>
+             </div>
+          </div>
+        </div>
+      `,
+      cards: (html, accent) => `
+        <div class="max-w-6xl mx-auto">
+          <div class="prose max-w-none mb-12 text-center">
+            ${html}
+          </div>
+          <style>
+            /* Transform UL into Grid */
+            ul {
+              display: grid;
+              grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+              gap: 1.5rem;
+              padding: 0 !important;
+              list-style: none !important;
+            }
+            li {
+              background: white;
+              border: 1px solid #e2e8f0;
+              border-radius: 1rem;
+              padding: 2rem !important;
+              margin: 0 !important;
+              box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+              transition: all 0.3s ease;
+              display: flex;
+              flex-direction: column;
+            }
+            li:hover {
+              transform: translateY(-4px);
+              box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+              border-color: ${accent};
+            }
+            li strong {
+              color: #1a202c;
+              font-size: 1.25rem;
+              display: block;
+              margin-bottom: 0.5rem;
+            }
+            /* Hide the bullet points */
+            li::before { display: none; }
+            
+            /* Style the H1 */
+            h1 { text-align: center; color: ${accent}; font-size: 3rem !important; }
+            /* Style the Intro P */
+            h1 + p { text-align: center; font-size: 1.25rem; max-width: 40rem; margin: 0 auto 3rem auto; color: #718096; }
+          </style>
+        </div>
+      `,
+      modern: (html, accent) => `
+        <div class="max-w-5xl mx-auto bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div class="flex flex-col md:flex-row">
+            <div class="bg-gray-50 p-8 md:w-1/3 border-r border-gray-100">
+               <div class="sticky top-8">
+                 <div class="h-1 w-12 bg-accent mb-6"></div>
+                 <!-- We want H1 and Callout here -->
+                 <style>
+                   .sidebar-content h1 { font-size: 2rem; line-height: 1.1; color: #1a202c; margin-bottom: 1.5rem; }
+                   .sidebar-content .callout { background: ${accent}; color: white; padding: 1.5rem; rounded: 0.5rem; font-style: italic; }
+                 </style>
+                 <div class="sidebar-content">
+                   <!-- This is a bit hacky, we rely on CSS to show/hide parts or just let it flow. 
+                        For a robust solution, we'd parse the HTML. 
+                        For now, let's just style the whole thing elegantly. -->
+                 </div>
+                 <!-- Fallback: Just a nice sidebar decoration -->
+                 <div class="text-4xl text-accent/20 font-serif font-bold">AI</div>
+               </div>
+            </div>
+            <div class="p-8 md:p-12 md:w-2/3 prose max-w-none">
               ${html}
             </div>
           </div>
-        `
+          <style>
+            h1 { color: ${accent}; }
+            a { background: ${accent}; color: white !important; padding: 0.5rem 1.5rem; border-radius: 9999px; text-decoration: none !important; display: inline-block; margin-top: 1rem; font-weight: 600; }
+            a:hover { opacity: 0.9; }
+            .callout { border-left: 4px solid ${accent}; background: #f7fafc; padding: 1rem; font-style: italic; color: #4a5568; }
+          </style>
+        </div>
+      `
+    };
+
+    const templates = [
+      {
+        id: 'stanford-hero',
+        name: 'Stanford Hero',
+        render: (html, accent, font) => wrapHTML(html, accent, font, layouts.hero)
       },
       {
-        id: 'resource',
-        name: 'Resource List',
-        render: (html, accent, font) => `
-          <div style="font-family: ${font === 'serif' ? 'Georgia, serif' : 'sans-serif'}; color: #333; border-left: 4px solid ${accent}; padding-left: 24px;">
-            ${html}
-          </div>
-        `
+        id: 'card-grid',
+        name: 'Card Grid',
+        render: (html, accent, font) => wrapHTML(html, accent, font, layouts.cards)
       },
       {
-        id: 'event',
-        name: 'Event Card',
-        render: (html, accent, font) => `
-          <div style="font-family: ${font === 'serif' ? 'Georgia, serif' : 'sans-serif'}; border: 1px solid #ddd; padding: 32px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); position: relative;">
-            <div style="position: absolute; top: 0; right: 0; background: ${accent}; color: white; padding: 4px 12px; font-size: 12px; font-weight: bold; border-bottom-left-radius: 8px;">EVENT</div>
-            ${html}
-          </div>
-        `
+        id: 'modern-split',
+        name: 'Modern Split',
+        render: (html, accent, font) => wrapHTML(html, accent, font, layouts.modern)
       },
       {
-        id: 'course',
-        name: 'Course Description',
-        render: (html, accent, font) => `
-          <div style="font-family: ${font === 'serif' ? 'Georgia, serif' : 'sans-serif'}; display: grid; grid-template-columns: 1fr; gap: 20px; border-top: 2px solid ${accent}; padding-top: 20px;">
-            ${html}
-          </div>
-        `
-      },
-      {
-        id: 'spotlight',
-        name: 'Staff Spotlight',
-        render: (html, accent, font) => `
-          <div style="font-family: ${font === 'serif' ? 'Georgia, serif' : 'sans-serif'}; background: #f9f9f9; padding: 40px; border-radius: 16px;">
-            <div style="color: ${accent}; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 16px;">Spotlight</div>
-            ${html}
-          </div>
-        `
-      },
-      {
-        id: 'policy',
-        name: 'Policy Brief',
-        render: (html, accent, font) => `
-          <div style="font-family: ${font === 'serif' ? 'Georgia, serif' : 'sans-serif'}; line-height: 1.8;">
-            <div style="border-bottom: 1px solid #ccc; padding-bottom: 12px; margin-bottom: 24px;">
-              <span style="background: ${accent}; color: white; padding: 4px 8px; font-size: 11px; text-transform: uppercase;">Policy</span>
+        id: 'minimal',
+        name: 'Clean Minimal',
+        render: (html, accent, font) => wrapHTML(html, accent, font, (h, a) => `
+          <div class="max-w-3xl mx-auto">
+            <div class="prose prose-lg max-w-none">
+              ${h}
             </div>
-            ${html}
+            <style>
+              h1 { font-weight: 300; letter-spacing: -0.025em; color: #1a202c; border-bottom: 1px solid #e2e8f0; padding-bottom: 1.5rem; }
+              a { color: ${a}; font-weight: 500; }
+              ul li::marker { color: ${a}; }
+            </style>
           </div>
-        `
+        `)
       },
       {
-        id: 'update',
-        name: 'Quick Update',
-        render: (html, accent, font) => `
-          <div style="font-family: ${font === 'serif' ? 'Georgia, serif' : 'sans-serif'}; border-left: 2px solid ${accent}; padding-left: 16px;">
-            <div style="font-weight: bold; color: ${accent}; margin-bottom: 8px;">UPDATE</div>
-            ${html}
+        id: 'newsletter',
+        name: 'Newsletter',
+        render: (html, accent, font) => wrapHTML(html, accent, font, (h, a) => `
+          <div class="max-w-2xl mx-auto bg-white p-8 border-t-8 border-accent shadow-lg">
+            <div class="prose max-w-none">
+              ${h}
+            </div>
+            <style>
+              body { background: #f3f4f6; }
+              h1 { text-align: center; font-family: serif; font-style: italic; color: #1a202c; }
+              .callout { background: ${a}15; border: 1px solid ${a}30; padding: 1.5rem; border-radius: 0.5rem; text-align: center; font-weight: 500; color: ${a}; }
+            </style>
           </div>
-        `
+        `)
       },
       {
-        id: 'hero',
-        name: 'Landing Page Hero',
-        render: (html, accent, font) => `
-          <div style="font-family: ${font === 'serif' ? 'Georgia, serif' : 'sans-serif'}; text-align: center; background: linear-gradient(to bottom, #f4f4f4, white); padding: 60px 20px; border-bottom: 4px solid ${accent};">
-            ${html}
+        id: 'dark-mode',
+        name: 'Dark Mode',
+        render: (html, accent, font) => wrapHTML(html, accent, font, (h, a) => `
+          <div class="max-w-4xl mx-auto">
+            <div class="prose prose-invert max-w-none">
+              ${h}
+            </div>
+            <style>
+              body { background: #1a202c; color: #e2e8f0; }
+              h1, h2, h3 { color: white !important; }
+              p, li { color: #cbd5e0 !important; }
+              a { color: ${a} !important; }
+              .callout { border: 1px solid ${a}; background: ${a}20; padding: 1rem; border-radius: 0.5rem; }
+            </style>
           </div>
-        `
+        `)
       }
     ];
 
     function renderTemplates() {
-      els.templateGrid.innerHTML = templates.map(t => `
+      els.templateGrid.innerHTML = templates.map((t, index) => `
         <div class="template-card">
-          <div class="preview-frame">
-            ${t.render(generatedHTML, '#8C1515', 'sans')}
+          <div class="preview-frame-wrapper">
+            <iframe 
+              id="preview-iframe-${index}"
+              class="preview-iframe"
+              scrolling="no"
+              onload="resizeIframe(this)"
+            ></iframe>
+            <div class="preview-overlay" onclick="openPanel('${t.id}')"></div>
           </div>
           <div class="template-info">
             <span class="template-name">${t.name}</span>
@@ -598,6 +1081,18 @@
           </div>
         </div>
       `).join('');
+
+      // Inject content after creating elements to avoid quote escaping hell
+      templates.forEach((t, index) => {
+        const iframe = document.getElementById(`preview-iframe-${index}`);
+        if (iframe) {
+          iframe.srcdoc = t.render(generatedHTML, '#8C1515', 'sans');
+        }
+      });
+    }
+    
+    window.resizeIframe = (obj) => {
+      obj.style.height = obj.contentWindow.document.documentElement.scrollHeight + 'px';
     }
 
     // --- CUSTOMIZATION ---
@@ -630,18 +1125,27 @@
     function updateLivePreview() {
       const tmpl = templates.find(t => t.id === currentTemplateId);
       if (tmpl) {
-        els.livePreview.innerHTML = tmpl.render(generatedHTML, currentAccent, currentFont);
+        // Update the iframe content
+        let iframe = document.getElementById('livePreviewIframe');
+        if (!iframe) {
+            iframe = document.createElement('iframe');
+            iframe.id = 'livePreviewIframe';
+            iframe.className = 'live-iframe';
+            els.livePreview.innerHTML = '';
+            els.livePreview.appendChild(iframe);
+        }
+        iframe.srcdoc = tmpl.render(generatedHTML, currentAccent, currentFont);
       }
     }
 
     // --- EXPORT ---
     window.copyToClipboard = () => {
-      const content = els.livePreview.innerHTML;
-      // Strip scripts/styles just in case (though we aren't adding any)
-      const cleanContent = content.replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gm, "")
-                                  .replace(/<style\b[^>]*>([\s\S]*?)<\/style>/gm, "");
+      const tmpl = templates.find(t => t.id === currentTemplateId);
+      if (!tmpl) return;
       
-      navigator.clipboard.writeText(cleanContent).then(() => {
+      const fullHTML = tmpl.render(generatedHTML, currentAccent, currentFont);
+      
+      navigator.clipboard.writeText(fullHTML).then(() => {
         els.toast.classList.add('show');
         setTimeout(() => els.toast.classList.remove('show'), 3000);
       });

@@ -1,4 +1,8 @@
-import { useState, useMemo, useCallback, useRef } from "react";
+import { useState, useMemo, useCallback, useRef, useEffect } from "react";
+import { v4 as uuidv4 } from 'uuid';
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragOverlay } from '@dnd-kit/core';
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, rectSortingStrategy, useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 const SLS = { red:"#8C1515", redDk:"#6B0F0F", redLt:"#B83A3A", warm:"#2E2D29", cool:"#53565A", sand:"#D2C295", fog:"#DAD7CB", cream:"#FAF9F6", parch:"#F4F1EB" };
 
@@ -225,10 +229,14 @@ function parseContent(raw: string) {
   const nodes: any[] = [];
   let i = 0;
   let ulBuf: string[] = [], olBuf: string[] = [];
-  const flushList = () => { if(ulBuf.length){nodes.push({type:"ul",items:[...ulBuf]});ulBuf=[];} if(olBuf.length){nodes.push({type:"ol",items:[...olBuf]});olBuf=[];} };
+  const flushList = () => { 
+    if(ulBuf.length){nodes.push({id:uuidv4(),type:"ul",items:[...ulBuf]});ulBuf=[];} 
+    if(olBuf.length){nodes.push({id:uuidv4(),type:"ol",items:[...olBuf]});olBuf=[];} 
+  };
 
   let inCard: string | null = null;
   let currentCard: any = null;
+  let lastWasEmpty = false;
 
   while (i < lines.length) {
     const ln = lines[i].trim();
@@ -237,67 +245,114 @@ function parseContent(raw: string) {
     if (ln.startsWith("::: card-")) {
       flushList();
       inCard = ln.replace("::: card-", "");
-      currentCard = { type: "card", style: inCard, title: "", icon: "", text: "", link: "", linkText: "" };
+      // console.log("Start card", inCard, "lastWasEmpty:", lastWasEmpty);
+      currentCard = { id:uuidv4(), type: "card", style: inCard, title: "", icon: "", text: "", link: "", linkText: "", grouped: !lastWasEmpty };
       i++;
+      lastWasEmpty = false;
       continue;
     }
 
     // Card Block End
     if (ln === ":::" && inCard) {
       if (currentCard) {
-        // Grouping logic: check if last node is a card-grid of same style
+        // Grouping logic: check if grouped flag is true (no empty line before start)
         const lastNode = nodes[nodes.length - 1];
-        if (lastNode && lastNode.type === "card-grid" && lastNode.style === inCard) {
+        // console.log("End card. Grouped:", currentCard.grouped, "LastNode:", lastNode?.type, lastNode?.style);
+        if (currentCard.grouped && lastNode && lastNode.type === "card-grid") {
           lastNode.items.push(currentCard);
         } else {
-          nodes.push({ type: "card-grid", style: inCard, items: [currentCard] });
+          nodes.push({ id:uuidv4(), type: "card-grid", style: inCard, items: [currentCard] });
         }
       }
       inCard = null;
       currentCard = null;
       i++;
+      lastWasEmpty = false;
       continue;
     }
 
     // Inside Card
     if (inCard && currentCard) {
       if (ln.startsWith("### ")) currentCard.title = ln.slice(4);
-      else if (ln.startsWith("ICON: ")) currentCard.icon = ln.slice(6);
-      else if (ln.startsWith("LINK: ")) {
-        const m = ln.match(/^LINK:\s*(.+?)\s*\((.+?)\)\s*$/);
+      else if (ln.match(/^ICON:\s*/i)) currentCard.icon = ln.replace(/^ICON:\s*/i, "");
+      else if (ln.match(/^LINK:\s*/i)) {
+        const m = ln.match(/^LINK:\s*(.+?)\s*\((.+?)\)\s*$/i);
         if (m) { currentCard.linkText = m[1]; currentCard.link = m[2]; }
       }
-      else if (ln) currentCard.text += (currentCard.text ? " " : "") + ln;
+      else if (ln) currentCard.text += (currentCard.text ? "\n" : "") + ln;
       i++;
       continue;
     }
 
-    if (!ln) { flushList(); i++; continue; }
+    if (!ln) { flushList(); lastWasEmpty = true; i++; continue; }
+    
+    lastWasEmpty = false;
     if (ln.startsWith("- ")) { if(olBuf.length)flushList(); ulBuf.push(ln.slice(2)); i++; continue; }
     const olM = ln.match(/^(\d+)\.\s+(.+)/);
     if (olM) { if(ulBuf.length)flushList(); olBuf.push(olM[2]); i++; continue; }
     flushList();
 
-    if (ln.startsWith("#### ")) nodes.push({type:"h4",text:ln.slice(5)});
-    else if (ln.startsWith("### ")) nodes.push({type:"h3",text:ln.slice(4)});
-    else if (ln.startsWith("## ")) nodes.push({type:"h2",text:ln.slice(3)});
-    else if (ln.startsWith("# ")) nodes.push({type:"h1",text:ln.slice(2)});
-    else if (ln.startsWith("> ")) nodes.push({type:"quote",text:ln.slice(2)});
+    if (ln.startsWith("#### ")) nodes.push({id:uuidv4(),type:"h4",text:ln.slice(5)});
+    else if (ln.startsWith("### ")) nodes.push({id:uuidv4(),type:"h3",text:ln.slice(4)});
+    else if (ln.startsWith("## ")) nodes.push({id:uuidv4(),type:"h2",text:ln.slice(3)});
+    else if (ln.startsWith("# ")) nodes.push({id:uuidv4(),type:"h1",text:ln.slice(2)});
+    else if (ln.startsWith("> ")) nodes.push({id:uuidv4(),type:"quote",text:ln.slice(2)});
     else if (ln.startsWith("IMAGE:")) {
       const m = ln.match(/^IMAGE:\s*(.+?)\s*\((\S+)\)\s*$/);
       let cap = ""; const nxt = (lines[i+1]||"").trim();
       if (nxt.startsWith("Caption:")) { cap = nxt.slice(8).trim(); i++; }
-      nodes.push({type:"image",alt:m?.[1]||"Image",src:m?.[2]||"",caption:cap});
+      nodes.push({id:uuidv4(),type:"image",alt:m?.[1]||"Image",src:m?.[2]||"",caption:cap});
     }
-    else if (ln.startsWith("VIDEO:")) { const m=ln.match(/^VIDEO:\s*(.+?)\s*\((\S+)\)\s*$/); nodes.push({type:"video",desc:m?.[1]||"Video",src:m?.[2]||""}); }
-    else if (ln.startsWith("FILE:")) { const m=ln.match(/^FILE:\s*(.+?)\s*\((\S+)\)\s*$/); nodes.push({type:"file",text:m?.[1]||"File",src:m?.[2]||""}); }
+    else if (ln.startsWith("VIDEO:")) { const m=ln.match(/^VIDEO:\s*(.+?)\s*\((\S+)\)\s*$/); nodes.push({id:uuidv4(),type:"video",desc:m?.[1]||"Video",src:m?.[2]||""}); }
+    else if (ln.startsWith("FILE:")) { const m=ln.match(/^FILE:\s*(.+?)\s*\((\S+)\)\s*$/); nodes.push({id:uuidv4(),type:"file",text:m?.[1]||"File",src:m?.[2]||""}); }
     else if (ln.startsWith("===") || ln.startsWith("[x]") || ln.startsWith("[ ]") || ln.startsWith("Page ") || ln.startsWith("Content Owner") || ln.startsWith("Target ") || ln.startsWith("PAGE CONTENT") || ln.startsWith("Submission")) {}
-    else if (ln === "---") nodes.push({type:"divider"});
-    else nodes.push({type:"p",text:ln});
+    else if (ln === "---") nodes.push({id:uuidv4(),type:"divider"});
+    else nodes.push({id:uuidv4(),type:"p",text:ln});
     i++;
   }
   flushList();
   return nodes;
+}
+
+// --- Serializer ---
+function serializeNodes(nodes: any[]) {
+  return nodes.map((n, i) => {
+    const prev = nodes[i-1];
+    const prefix = i > 0 ? "\n\n" : "";
+    
+    if (n.type === "h1") return `${prefix}# ${n.text}`;
+    if (n.type === "h2") return `${prefix}## ${n.text}`;
+    if (n.type === "h3") return `${prefix}### ${n.text}`;
+    if (n.type === "h4") return `${prefix}#### ${n.text}`;
+    if (n.type === "p") return `${prefix}${n.text}`;
+    if (n.type === "quote") return `${prefix}> ${n.text}`;
+    if (n.type === "ul") return `${prefix}${n.items.map((it:string)=>`- ${it}`).join("\n")}`;
+    if (n.type === "ol") return `${prefix}${n.items.map((it:string,j:number)=>`${j+1}. ${it}`).join("\n")}`;
+    if (n.type === "divider") return `${prefix}---`;
+    if (n.type === "image") return `${prefix}IMAGE: ${n.alt} (${n.src})${n.caption?`\nCaption: ${n.caption}`:""}`;
+    if (n.type === "video") return `${prefix}VIDEO: ${n.desc} (${n.src})`;
+    if (n.type === "file") return `${prefix}FILE: ${n.text} (${n.src})`;
+    if (n.type === "card-grid") {
+      return `${prefix}` + n.items.map((c:any) => {
+        return `::: card-${c.style || n.style}\n${c.icon?`ICON: ${c.icon}\n`:""}${c.title?`### ${c.title}\n`:""}${c.text ? c.text + "\n" : ""}${c.link?`LINK: ${c.linkText} (${c.link})\n`:""}:::`;
+      }).join("\n");
+    }
+    return "";
+  }).join("");
+}
+
+// --- Sortable Item Wrapper ---
+function SortableItem(props: any) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: props.id });
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1, position: "relative" as const, zIndex: isDragging ? 999 : "auto" };
+  return (
+    <div ref={setNodeRef} style={style} {...attributes}>
+      <div {...listeners} style={{position:"absolute",left:-24,top:0,bottom:0,width:24,cursor:"grab",display:"flex",alignItems:"center",justifyContent:"center",opacity:0.5}}>
+        ⋮
+      </div>
+      {props.children}
+    </div>
+  );
 }
 
 function inlineFmt(text: string) {
@@ -324,89 +379,174 @@ function inlineFmt(text: string) {
 function getYTId(url: string) { const m=url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\s]+)/); return m?m[1]:null; }
 
 // --- Preview Component ---
-function Preview({nodes,t}: {nodes: any[], t: any}) {
-  const c = t.css, hs = c.headScale||1;
-  
-  if (nodes.length === 0) {
+function Preview({nodes, t, isLayoutMode, onUpdateNodes}: {nodes: any[], t: any, isLayoutMode: boolean, onUpdateNodes: (nodes: any[]) => void}) {
+  const c = t.css;
+  const hs = c.headScale || 1;
+  const lc = c.linkColor || SLS.red;
+
+  const heroNode = nodes.find(n => n.type === "h1");
+  const heroIdx = heroNode ? nodes.indexOf(heroNode) : -1;
+  let gotIntro = false;
+
+  const rndr = (tx: string) => <span dangerouslySetInnerHTML={{__html: inlineFmt(tx).replace(/LINKCOLOR/g, lc)}} />;
+
+  // Helper to split a grid into individual cards
+  const splitGrid = (gridNode: any, idx: number) => {
+    console.log("Splitting grid at index", idx);
+    const cards = gridNode.items.map((item: any) => ({
+      id: uuidv4(),
+      type: "card-grid",
+      style: item.style || gridNode.style,
+      items: [item]
+    }));
+    
+    const newNodes = [
+      ...nodes.slice(0, idx),
+      ...cards,
+      ...nodes.slice(idx + 1)
+    ];
+    
+    onUpdateNodes(newNodes);
+  };
+
+  // Helper to merge adjacent grids
+  const mergeGrid = (idx: number) => {
+    console.log("Merging grid at index", idx);
+    const curr = nodes[idx];
+    const next = nodes[idx+1];
+    if (curr && next && curr.type === "card-grid" && next.type === "card-grid") {
+      const mergedNode = {
+        ...curr,
+        items: [...curr.items, ...next.items]
+      };
+      
+      const newNodes = [
+        ...nodes.slice(0, idx),
+        mergedNode,
+        ...nodes.slice(idx + 2)
+      ];
+      
+      onUpdateNodes(newNodes);
+    }
+  };
+
+  const sensors = useSensors(useSensor(PointerSensor), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
+
+  const handleDragEnd = (event: any) => {
+    const {active, over} = event;
+    if (active.id !== over.id) {
+      const oldIndex = nodes.findIndex(n => n.id === active.id);
+      const newIndex = nodes.findIndex(n => n.id === over.id);
+      onUpdateNodes(arrayMove(nodes, oldIndex, newIndex));
+    }
+  };
+
+  // Inner Sortable Grid Items
+  const GridSortable = ({items, style, parentId}: any) => {
+    const sensors = useSensors(useSensor(PointerSensor), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
+    const handleGridDragEnd = (event: any) => {
+      const {active, over} = event;
+      if (active.id !== over.id) {
+        const oldIndex = items.findIndex((n:any) => n.id === active.id);
+        const newIndex = items.findIndex((n:any) => n.id === over.id);
+        const newItems = arrayMove(items, oldIndex, newIndex);
+        // Update parent node
+        const newNodes = nodes.map(n => n.id === parentId ? {...n, items: newItems} : n);
+        onUpdateNodes(newNodes);
+      }
+    };
     return (
-      <div style={{background:c.pageBg,fontFamily:c.fontBody,color:c.textColor,minHeight:"100%",padding:"40px 24px"}}>
-        <div style={{maxWidth:600,margin:"0 auto",padding:32,background:c.cardBg,border:c.cardBorder,borderRadius:c.cardRadius,boxShadow:c.cardShadow}}>
-          <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:16}}>
-            <div style={{width:48,height:48,borderRadius:12,background:c.heroGrad,display:"flex",alignItems:"center",justifyContent:"center",color:"#FFF",fontWeight:700,fontSize:20}}>✨</div>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleGridDragEnd}>
+        <SortableContext items={items} strategy={rectSortingStrategy}>
+          <div style={{display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(280px, 1fr))", gap:24, margin:"32px 0"}}>
+            {items.map((card: any, j: number) => (
+              <SortableCard key={card.id} card={card} styleType={style} t={t} isLayoutMode={isLayoutMode} />
+            ))}
+          </div>
+        </SortableContext>
+      </DndContext>
+    );
+  };
+
+  const SortableCard = ({card, styleType, t, isLayoutMode}: any) => {
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: card.id, disabled: !isLayoutMode });
+    const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1, position: "relative" as const, zIndex: isDragging ? 999 : "auto", height: "100%" };
+    
+    const content = (
+      <>
+        {styleType === "simple" && (
+          <div style={{padding:24, background:t.css.cardSimpleBg, borderRadius:t.css.cardRadius, display:"flex", gap:16, alignItems:"flex-start", border:t.css.cardBorder, height:"100%"}}>
+            {card.icon && <div style={{width:40, height:40, borderRadius:"50%", background:"#FFF", display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, flexShrink:0, boxShadow:"0 2px 4px rgba(0,0,0,0.05)"}}>{card.icon}</div>}
             <div>
-              <h2 style={{fontFamily:c.fontHead,fontSize:24,fontWeight:700,color:c.textColor,margin:0}}>{t.name}</h2>
-              <div style={{fontSize:14,color:c.mutedColor,marginTop:4}}>{t.desc}</div>
+              {card.title && <div style={{fontWeight:700, fontSize:16, marginBottom:4, fontFamily:t.css.fontHead}}>{card.title}</div>}
+              {card.text && <div style={{fontSize:14, lineHeight:1.5, color:t.css.mutedColor, marginBottom:8}} dangerouslySetInnerHTML={{__html:inlineFmt(card.text)}} />}
+              {card.link && <a href={card.link} target="_blank" style={{fontSize:14, fontWeight:600, color:t.css.linkColor, textDecoration:"none"}}>{card.linkText || "Learn more"} &rarr;</a>}
             </div>
           </div>
-          
-          <div style={{marginTop:32,borderTop:c.divider,paddingTop:24}}>
-            <h3 style={{fontFamily:c.fontHead,fontSize:16,fontWeight:600,marginBottom:16}}>Theme Details</h3>
-            
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:24}}>
-              <div>
-                <div style={{fontSize:11,fontWeight:700,color:c.mutedColor,textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>Typography</div>
-                <div style={{fontSize:14,marginBottom:4}}><strong>Headings:</strong> <span style={{fontFamily:c.fontHead}}>{c.fontHead.split(',')[0].replace(/['"]/g,'')}</span></div>
-                <div style={{fontSize:14}}><strong>Body:</strong> <span style={{fontFamily:c.fontBody}}>{c.fontBody.split(',')[0].replace(/['"]/g,'')}</span></div>
-              </div>
-              
-              <div>
-                <div style={{fontSize:11,fontWeight:700,color:c.mutedColor,textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>Colors</div>
-                <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
-                  {[
-                    {l:"Page", v:c.pageBg},
-                    {l:"Text", v:c.textColor},
-                    {l:"Link", v:c.linkColor},
-                    {l:"Card", v:c.cardBg}
-                  ].map(col => (
-                    <div key={col.l} style={{display:"flex",alignItems:"center",gap:6,background:"#F3F4F6",padding:"4px 8px",borderRadius:4}}>
-                      <div style={{width:16,height:16,borderRadius:4,background:col.v,border:"1px solid rgba(0,0,0,0.1)"}} />
-                      <span style={{fontSize:12,color:"#374151",fontWeight:500}}>{col.l}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
+        )}
+        {styleType === "feature" && (
+          <div style={{padding:32, background:t.css.cardFeatureBg, borderRadius:t.css.cardRadius, color:t.css.cardFeatureText, display:"flex", gap:20, alignItems:"center", height:"100%"}}>
+            {card.icon && <div style={{width:56, height:56, borderRadius:12, background:"rgba(255,255,255,0.15)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:28, flexShrink:0}}>{card.icon}</div>}
+            <div>
+              {card.title && <div style={{fontWeight:700, fontSize:20, marginBottom:8, fontFamily:t.css.fontHead}}>{card.title}</div>}
+              {card.text && <div style={{fontSize:15, lineHeight:1.5, opacity:0.9}} dangerouslySetInnerHTML={{__html:inlineFmt(card.text)}} />}
             </div>
           </div>
-          
-          <div style={{marginTop:32,padding:"16px 20px",background:c.quoteBg,borderLeft:c.quoteBorder!=="none"?c.quoteBorder:undefined,borderRadius:c.quoteRadius,color:c.quoteColor||c.textColor,fontFamily:c.fontHead,fontSize:c.quoteColor?18:16,fontWeight:c.quoteColor?600:400,lineHeight:1.6}}>
-            Start typing in the editor to see your content styled with this theme.
+        )}
+        {styleType === "action" && (
+          <div style={{padding:24, background:t.css.cardActionBg, borderRadius:t.css.cardRadius, border:t.css.cardBorder, display:"flex", flexDirection:"column", height:"100%"}}>
+            {card.icon && <div style={{width:48, height:48, borderRadius:12, background:t.css.iconBg, color:t.css.iconColor, display:"flex", alignItems:"center", justifyContent:"center", fontSize:24, marginBottom:16, alignSelf:"flex-start"}}>{card.icon}</div>}
+            {card.title && <div style={{fontWeight:700, fontSize:18, marginBottom:8, fontFamily:t.css.fontHead}}>{card.title}</div>}
+            {card.text && <div style={{fontSize:15, lineHeight:1.6, color:t.css.mutedColor, marginBottom:24, flex:1}} dangerouslySetInnerHTML={{__html:inlineFmt(card.text)}} />}
+            {card.link && <a href={card.link} target="_blank" style={{fontSize:14, fontWeight:700, color:t.css.linkColor, textDecoration:"none", display:"flex", alignItems:"center", gap:6}}>{card.linkText || "Explore"} <span>&rarr;</span></a>}
           </div>
-        </div>
+        )}
+      </>
+    );
+
+    if (!isLayoutMode) return <div style={{height:"100%"}}>{content}</div>;
+
+    return (
+      <div ref={setNodeRef} style={style} {...attributes}>
+        <div {...listeners} style={{position:"absolute",right:8,top:8,width:24,height:24,background:"rgba(0,0,0,0.1)",borderRadius:4,cursor:"grab",display:"flex",alignItems:"center",justifyContent:"center",zIndex:10}}>⋮</div>
+        {content}
       </div>
     );
-  }
+  };
 
-  const heroNode = nodes.find(n=>n.type==="h1");
-  const heroIdx = heroNode ? nodes.indexOf(heroNode) : -1;
-  let introNodes: any[]=[], bodyNodes: any[]=[];
-  let past=false, gotIntro=false;
-  for(let i=0;i<nodes.length;i++){
-    if(i===heroIdx){past=true;continue;}
-    if(past&&!gotIntro&&nodes[i].type==="p"){introNodes.push(nodes[i]);gotIntro=true;continue;}
-    if(past||heroIdx===-1) bodyNodes.push(nodes[i]);
-  }
-  const rndr = (text: string) => <span dangerouslySetInnerHTML={{__html:inlineFmt(text).replace(/LINKCOLOR/g, c.linkColor||SLS.red)}} />;
-
-  return (
-    <div style={{background:c.pageBg,fontFamily:c.fontBody,color:c.textColor}}>
-      <div style={{background:c.heroGrad,padding:"56px 40px",borderRadius:c.heroRadius,margin:c.heroMargin||0,...(c.heroExtra?.includes("border")?{borderBottom:c.heroExtra.replace("border-bottom:","")}:{})}}>
-        <div style={{maxWidth:700}}>
-          {heroNode&&<h1 style={{fontFamily:c.fontHead,fontSize:40*hs,fontWeight:700,color:"#FFF",marginBottom:16,lineHeight:1.15}}>{heroNode.text}</h1>}
-          {introNodes.map((n,i)=><p key={i} style={{color:"rgba(255,255,255,0.88)",fontSize:17,lineHeight:1.6,fontWeight:300}}>{rndr(n.text)}</p>)}
+  const content = (
+    <div style={{maxWidth:860, margin:"0 auto", padding:"40px 24px 64px"}}>
+      {nodes.length === 0 && (
+        <div style={{textAlign:"center", padding:40, color:c.mutedColor, border:`2px dashed ${c.divider.split(" ")[2]}`, borderRadius:12}}>
+          <div style={{fontSize:48, marginBottom:16}}>✨</div>
+          <h3 style={{fontSize:18, fontWeight:600, color:c.textColor, marginBottom:8}}>Start Creating</h3>
+          <p style={{fontSize:14}}>Type in the editor or use the toolbar to add content.</p>
+          <div style={{marginTop:24, fontSize:12, opacity:0.7}}>
+            Theme: <b>{t.name}</b> • {t.desc}
+          </div>
         </div>
-      </div>
-      <div style={{maxWidth:860,margin:"0 auto",padding:"40px 24px 64px"}}>
-        {bodyNodes.map((n,i)=>{
-          if(n.type==="h2") return <h2 key={i} style={{fontFamily:c.fontHead,fontSize:28*hs,fontWeight:600,color:c.textColor,marginTop:48,marginBottom:16,paddingBottom:12,borderBottom:c.divider}}>{n.text}</h2>;
-          if(n.type==="h3") return <h3 key={i} style={{fontFamily:c.fontHead,fontSize:22*hs,fontWeight:600,color:c.textColor,marginTop:32,marginBottom:12}}>{n.text}</h3>;
-          if(n.type==="h4") return <h4 key={i} style={{fontFamily:c.fontHead,fontSize:18*hs,fontWeight:600,color:c.textColor,marginTop:24,marginBottom:8}}>{n.text}</h4>;
-          if(n.type==="p") return <p key={i} style={{fontSize:16,lineHeight:1.7,marginBottom:12}}>{rndr(n.text)}</p>;
-          if(n.type==="quote") return <div key={i} style={{padding:"16px 20px",margin:"16px 0",background:c.quoteBg,borderLeft:c.quoteBorder!=="none"?c.quoteBorder:undefined,borderRadius:c.quoteRadius,color:c.quoteColor||c.textColor,fontFamily:c.fontHead,fontSize:c.quoteColor?18:16,fontWeight:c.quoteColor?600:400,lineHeight:1.6}}>{rndr(n.text)}</div>;
-          if(n.type==="ul") return <ul key={i} style={{marginBottom:16,padding:0,listStyle:"none"}}>{n.items.map((it: string,j: number)=><li key={j} style={{display:"flex",gap:10,marginBottom:6,fontSize:15,lineHeight:1.6}}><span style={{color:SLS.red,fontWeight:700,flexShrink:0}}>•</span><span>{rndr(it)}</span></li>)}</ul>;
-          if(n.type==="ol") return <ol key={i} style={{marginBottom:16,padding:0,listStyle:"none"}}>{n.items.map((it: string,j: number)=><li key={j} style={{display:"flex",gap:10,marginBottom:6,fontSize:15,lineHeight:1.6}}><span style={{color:SLS.red,fontWeight:700,flexShrink:0}}>{j+1}.</span><span>{rndr(it)}</span></li>)}</ol>;
-          if(n.type==="divider") return <hr key={i} style={{border:0, borderTop:c.divider, margin:"32px 0"}} />;
+      )}
+      {nodes.map((n, i) => {
+        // Skip hero
+        if (heroIdx !== -1 && i === heroIdx) return null;
+
+        // Skip intro paragraph (it's in the hero)
+        if (heroIdx !== -1 && !gotIntro && n.type === "p" && i > heroIdx) {
+          gotIntro = true;
+          return null;
+        }
+
+        const comp = (() => {
+          if(n.type==="h2") return <h2 style={{fontFamily:c.fontHead,fontSize:28*hs,fontWeight:600,color:c.textColor,margin:"48px 0 16px",paddingBottom:12,borderBottom:c.divider}}>{n.text}</h2>;
+          if(n.type==="h3") return <h3 style={{fontFamily:c.fontHead,fontSize:22*hs,fontWeight:600,color:c.textColor,margin:"32px 0 12px"}}>{n.text}</h3>;
+          if(n.type==="h4") return <h4 style={{fontFamily:c.fontHead,fontSize:18*hs,fontWeight:600,color:c.textColor,margin:"24px 0 8px"}}>{n.text}</h4>;
+          if(n.type==="p") return <p style={{fontSize:16,lineHeight:1.7,margin:"0 0 12px"}}>{rndr(n.text)}</p>;
+          if(n.type==="quote") return <div style={{padding:"16px 20px",margin:"16px 0",background:c.quoteBg,borderLeft:c.quoteBorder!=="none"?c.quoteBorder:undefined,borderRadius:c.quoteRadius,color:c.quoteColor||c.textColor,fontFamily:c.fontHead,fontSize:c.quoteColor?18:16,fontWeight:c.quoteColor?600:400,lineHeight:1.6}}>{rndr(n.text)}</div>;
+          if(n.type==="ul") return <ul style={{marginBottom:16,padding:0,listStyle:"none"}}>{n.items.map((it: string,j: number)=><li key={j} style={{display:"flex",gap:10,marginBottom:6,fontSize:15,lineHeight:1.6}}><span style={{color:SLS.red,fontWeight:700,flexShrink:0}}>•</span><span>{rndr(it)}</span></li>)}</ul>;
+          if(n.type==="ol") return <ol style={{marginBottom:16,padding:0,listStyle:"none"}}>{n.items.map((it: string,j: number)=><li key={j} style={{display:"flex",gap:10,marginBottom:6,fontSize:15,lineHeight:1.6}}><span style={{color:SLS.red,fontWeight:700,flexShrink:0}}>{j+1}.</span><span>{rndr(it)}</span></li>)}</ol>;
+          if(n.type==="divider") return <hr style={{border:0, borderTop:c.divider, margin:"32px 0"}} />;
           if(n.type==="image") return (
-            <figure key={i} style={{margin:"24px 0",borderRadius:c.cardRadius,overflow:"hidden",border:c.cardBorder,background:"#F9FAFB"}}>
+            <figure style={{margin:"24px 0",borderRadius:c.cardRadius,overflow:"hidden",border:c.cardBorder,background:"#F9FAFB"}}>
               <img src={n.src || undefined} alt={n.alt} style={{width:"100%",display:"block",minHeight:200,objectFit:"cover",background:"#E5E7EB"}} onError={(e: any)=>{e.target.style.display="none";e.target.nextSibling.style.display="flex"}} />
               <div style={{display:"none",height:200,alignItems:"center",justifyContent:"center",flexDirection:"column",color:c.mutedColor,background:"#F3F4F6"}}>
                 <span style={{fontSize:36,marginBottom:8}}>🖼️</span>
@@ -420,8 +560,7 @@ function Preview({nodes,t}: {nodes: any[], t: any}) {
             const ytId=getYTId(n.src);
             const isDrive = n.src && n.src.includes("drive.google.com/file/d/");
             const driveUrl = isDrive ? n.src.replace(/\/view.*$/, "/preview") : null;
-            
-            return <div key={i} style={{margin:"24px 0"}}>{ytId?(
+            return <div style={{margin:"24px 0"}}>{ytId?(
               <div style={{position:"relative",paddingBottom:"56.25%",height:0,borderRadius:c.cardRadius,overflow:"hidden",border:c.cardBorder}}>
                 <iframe src={`https://www.youtube.com/embed/${ytId}`} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",border:"none"}} allowFullScreen title={n.desc}/>
               </div>
@@ -437,57 +576,72 @@ function Preview({nodes,t}: {nodes: any[], t: any}) {
             )}</div>;
           }
           if(n.type==="file") return (
-            <a key={i} href={n.src || undefined} target="_blank" rel="noreferrer" style={{display:"flex",alignItems:"center",gap:14,margin:"16px 0",padding:"16px 20px",border:c.cardBorder,borderRadius:c.cardRadius,background:c.cardBg,textDecoration:"none",color:c.textColor}}>
+            <a href={n.src || undefined} target="_blank" rel="noreferrer" style={{display:"flex",alignItems:"center",gap:14,margin:"16px 0",padding:"16px 20px",border:c.cardBorder,borderRadius:c.cardRadius,background:c.cardBg,textDecoration:"none",color:c.textColor}}>
               <span style={{fontSize:24}}>📄</span>
               <div><div style={{fontWeight:600,fontSize:15}}>{n.text}</div><span style={{fontSize:13,color:SLS.red,wordBreak:"break-all"}}>{n.src}</span></div>
             </a>
           );
-
           if(n.type==="card-grid") {
             return (
-              <div key={i} style={{display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(280px, 1fr))", gap:24, margin:"32px 0"}}>
-                {n.items.map((card: any, j: number) => {
-                  if (n.style === "simple") {
-                    return (
-                      <div key={j} style={{padding:24, background:c.cardSimpleBg, borderRadius:c.cardRadius, display:"flex", gap:16, alignItems:"flex-start", border:c.cardBorder}}>
-                        {card.icon && <div style={{width:40, height:40, borderRadius:"50%", background:"#FFF", display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, flexShrink:0, boxShadow:"0 2px 4px rgba(0,0,0,0.05)"}}>{card.icon}</div>}
-                        <div>
-                          {card.title && <div style={{fontWeight:700, fontSize:16, marginBottom:4, fontFamily:c.fontHead}}>{card.title}</div>}
-                          {card.text && <div style={{fontSize:14, lineHeight:1.5, color:c.mutedColor, marginBottom:8}} dangerouslySetInnerHTML={{__html:inlineFmt(card.text)}} />}
-                          {card.link && <a href={card.link} target="_blank" style={{fontSize:14, fontWeight:600, color:c.linkColor, textDecoration:"none"}}>{card.linkText || "Learn more"} &rarr;</a>}
-                        </div>
-                      </div>
-                    );
-                  }
-                  if (n.style === "feature") {
-                    return (
-                      <div key={j} style={{padding:32, background:c.cardFeatureBg, borderRadius:c.cardRadius, color:c.cardFeatureText, display:"flex", gap:20, alignItems:"center"}}>
-                        {card.icon && <div style={{width:56, height:56, borderRadius:12, background:"rgba(255,255,255,0.15)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:28, flexShrink:0}}>{card.icon}</div>}
-                        <div>
-                          {card.title && <div style={{fontWeight:700, fontSize:20, marginBottom:8, fontFamily:c.fontHead}}>{card.title}</div>}
-                          {card.text && <div style={{fontSize:15, lineHeight:1.5, opacity:0.9}} dangerouslySetInnerHTML={{__html:inlineFmt(card.text)}} />}
-                        </div>
-                      </div>
-                    );
-                  }
-                  if (n.style === "action") {
-                    return (
-                      <div key={j} style={{padding:24, background:c.cardActionBg, borderRadius:c.cardRadius, border:c.cardBorder, display:"flex", flexDirection:"column", height:"100%"}}>
-                        {card.icon && <div style={{width:48, height:48, borderRadius:12, background:c.iconBg, color:c.iconColor, display:"flex", alignItems:"center", justifyContent:"center", fontSize:24, marginBottom:16, alignSelf:"flex-start"}}>{card.icon}</div>}
-                        {card.title && <div style={{fontWeight:700, fontSize:18, marginBottom:8, fontFamily:c.fontHead}}>{card.title}</div>}
-                        {card.text && <div style={{fontSize:15, lineHeight:1.6, color:c.mutedColor, marginBottom:24, flex:1}} dangerouslySetInnerHTML={{__html:inlineFmt(card.text)}} />}
-                        {card.link && <a href={card.link} target="_blank" style={{fontSize:14, fontWeight:700, color:c.linkColor, textDecoration:"none", display:"flex", alignItems:"center", gap:6}}>{card.linkText || "Explore"} <span>&rarr;</span></a>}
-                      </div>
-                    );
-                  }
-                  return null;
-                })}
+              <div style={{position:"relative"}}>
+                {isLayoutMode && (
+                  <div style={{position:"absolute", top:-20, right:0, display:"flex", gap:4, zIndex:20}}>
+                    {n.items.length > 1 && <button onClick={()=>splitGrid(n, i)} style={{fontSize:10, padding:"2px 6px", background:"#FFF", border:"1px solid #CCC", borderRadius:4, cursor:"pointer"}}>Split Grid</button>}
+                    {nodes[i+1]?.type === "card-grid" && <button onClick={()=>mergeGrid(i)} style={{fontSize:10, padding:"2px 6px", background:"#FFF", border:"1px solid #CCC", borderRadius:4, cursor:"pointer"}}>Merge Next</button>}
+                  </div>
+                )}
+                <GridSortable items={n.items} style={n.style} parentId={n.id} />
               </div>
             );
           }
           return null;
-        })}
+        })();
+
+        if (isLayoutMode) {
+          return <SortableItem key={n.id} id={n.id}>{comp}</SortableItem>;
+        }
+        return <div key={n.id}>{comp}</div>;
+      })}
+    </div>
+  );
+
+  if (isLayoutMode) {
+    return (
+      <div style={{background:c.pageBg,fontFamily:c.fontBody,color:c.textColor,minHeight:"100%"}}>
+        <div style={{background:c.heroGrad,padding:"56px 40px",borderRadius:c.heroRadius,margin:c.heroMargin||0,...(c.heroExtra?.includes("border")?{borderBottom:c.heroExtra.replace("border-bottom:","")}:{})}}>
+          <div style={{maxWidth:700}}>
+            {heroNode&&<h1 style={{fontFamily:c.fontHead,fontSize:40*hs,fontWeight:700,color:"#FFF",marginBottom:16,lineHeight:1.15}}>{heroNode.text}</h1>}
+            {nodes.map((n,i)=>{
+              if(heroIdx!==-1 && !gotIntro && n.type==="p" && i>heroIdx) {
+                return <p key={i} style={{color:"rgba(255,255,255,0.88)",fontSize:17,lineHeight:1.6,fontWeight:300}}>{rndr(n.text)}</p>
+              }
+              return null;
+            })}
+          </div>
+        </div>
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={nodes} strategy={verticalListSortingStrategy}>
+            {content}
+          </SortableContext>
+        </DndContext>
       </div>
+    );
+  }
+
+  return (
+    <div style={{background:c.pageBg,fontFamily:c.fontBody,color:c.textColor,minHeight:"100%"}}>
+      <div style={{background:c.heroGrad,padding:"56px 40px",borderRadius:c.heroRadius,margin:c.heroMargin||0,...(c.heroExtra?.includes("border")?{borderBottom:c.heroExtra.replace("border-bottom:","")}:{})}}>
+        <div style={{maxWidth:700}}>
+          {heroNode&&<h1 style={{fontFamily:c.fontHead,fontSize:40*hs,fontWeight:700,color:"#FFF",marginBottom:16,lineHeight:1.15}}>{heroNode.text}</h1>}
+          {nodes.map((n,i)=>{
+            if(heroIdx!==-1 && !gotIntro && n.type==="p" && i>heroIdx) {
+              return <p key={i} style={{color:"rgba(255,255,255,0.88)",fontSize:17,lineHeight:1.6,fontWeight:300}}>{rndr(n.text)}</p>
+            }
+            return null;
+          })}
+        </div>
+      </div>
+      {content}
     </div>
   );
 }
@@ -582,11 +736,69 @@ export default function App() {
   const [content, setContent] = useState("");
   const [view, setView] = useState("split");
   const [copied, setCopied] = useState(false);
+  const [isLayoutMode, setIsLayoutMode] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // History State
+  const [history, setHistory] = useState<string[]>([""]);
+  const [historyIdx, setHistoryIdx] = useState(0);
+  const ignoreHistoryChange = useRef(false);
+  const historyTimeout = useRef<any>(null);
+
+  // History Management
+  useEffect(() => {
+    if (ignoreHistoryChange.current) {
+      ignoreHistoryChange.current = false;
+      return;
+    }
+
+    if (historyTimeout.current) clearTimeout(historyTimeout.current);
+
+    historyTimeout.current = setTimeout(() => {
+      setHistory(prev => {
+        const currentCommit = prev[historyIdx];
+        if (content === currentCommit) return prev;
+        
+        const newHist = prev.slice(0, historyIdx + 1);
+        newHist.push(content);
+        return newHist;
+      });
+      setHistoryIdx(prev => {
+        // Only increment if we actually added something (checked inside setHistory, but simpler here to just assume sync)
+        // Actually, we need to be careful. Let's just trust the slice logic.
+        // If content didn't change, we shouldn't be here? 
+        // Wait, content changed to trigger useEffect.
+        return historyIdx + 1; 
+      });
+    }, 800);
+
+    return () => clearTimeout(historyTimeout.current);
+  }, [content]);
+
+  const handleUndo = () => {
+    // If we have uncommitted changes, revert to current commit
+    if (content !== history[historyIdx]) {
+      ignoreHistoryChange.current = true;
+      setContent(history[historyIdx]);
+      return;
+    }
+
+    // Otherwise go back one step
+    if (historyIdx > 0) {
+      ignoreHistoryChange.current = true;
+      const newIdx = historyIdx - 1;
+      setHistoryIdx(newIdx);
+      setContent(history[newIdx]);
+    }
+  };
 
   const nodes = useMemo(()=>parseContent(content),[content]);
   const t = themes[active];
   const html = useMemo(()=>genHTML(nodes,t),[nodes,t]);
+
+  const handleUpdateNodes = (newNodes: any[]) => {
+    setContent(serializeNodes(newNodes));
+  };
 
   const handleCopy = useCallback(()=>{navigator.clipboard.writeText(html).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2500)});},[html]);
   const handleDL = useCallback(()=>{const b=new Blob([html],{type:"text/html"});const u=URL.createObjectURL(b);const a=document.createElement("a");a.href=u;a.download=`page-style-${active}.html`;a.click();URL.revokeObjectURL(u);},[html,active]);
@@ -615,8 +827,8 @@ export default function App() {
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           <div style={{width:32,height:32,borderRadius:8,background:SLS.red,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>🎨</div>
           <div>
-            <div style={{fontSize:15,fontWeight:700,color:"#FFF",letterSpacing:0.3}}>The AI Learning Hub</div>
-            <div style={{fontSize:11,color:"rgba(255,255,255,0.6)",fontWeight:500}}>Content Style Maker</div>
+            <div style={{fontSize:15,fontWeight:700,color:"#FFF",letterSpacing:0.3}}>AI Learning Hub</div>
+            <div style={{fontSize:11,color:"rgba(255,255,255,0.6)",fontWeight:500}}>Canvas Mode</div>
           </div>
         </div>
         <div style={{display:"flex",gap:4}}>
@@ -652,6 +864,13 @@ export default function App() {
                 borderColor:view===v?"#374151":"#E5E7EB", background:view===v?"#374151":"#FFF", color:view===v?"#FFF":"#374151"
               }}>{l}</button>
             ))}
+            <div style={{width:1, height:16, background:"#E5E7EB", margin:"0 4px"}}/>
+            <button onClick={()=>setIsLayoutMode(!isLayoutMode)} style={{
+              padding:"5px 10px",borderRadius:6,border:"1px solid",cursor:"pointer",fontSize:11,fontWeight:600,
+              borderColor:isLayoutMode?SLS.red:"#E5E7EB", background:isLayoutMode?"#FEF2F2":"#FFF", color:isLayoutMode?SLS.red:"#374151"
+            }}>
+              {isLayoutMode ? "Done Arranging" : "Arrange Layout"}
+            </button>
             <div style={{width:1,height:20,background:"#E5E7EB",margin:"0 4px"}} />
             <button onClick={handleCopy} style={{padding:"5px 12px",borderRadius:6,border:`2px solid ${SLS.red}`,background:copied?SLS.red:"#FFF",color:copied?"#FFF":SLS.red,fontWeight:600,fontSize:11,cursor:"pointer"}}>{copied?"✓ Copied!":"Copy HTML"}</button>
             <button onClick={handleDL} style={{padding:"5px 12px",borderRadius:6,border:"none",background:SLS.red,color:"#FFF",fontWeight:600,fontSize:11,cursor:"pointer"}}>↓ Download</button>
@@ -671,13 +890,14 @@ export default function App() {
               <div style={{padding:"8px 16px",background:"#F9FAFB",borderBottom:"1px solid #E5E7EB",fontSize:11,fontWeight:700,color:"#6B7280",display:"flex",justifyContent:"space-between"}}>
                 <span>CONTENT EDITOR</span>
                 <div style={{display:"flex", gap: 12}}>
+                  <button onClick={handleUndo} style={{fontSize:10,color:"#6B7280",background:"none",border:"none",cursor:"pointer",fontWeight:600,outline:"none",opacity:historyIdx>0||content!==history[historyIdx]?1:0.3}}>⎌ Undo</button>
                   <button onClick={()=>setContent("")} style={{fontSize:10,color:"#6B7280",background:"none",border:"none",cursor:"pointer",fontWeight:600,outline:"none"}}>Clear</button>
                   <button onClick={()=>setContent(SAMPLE)} style={{fontSize:10,color:SLS.red,background:"none",border:"none",cursor:"pointer",fontWeight:600,outline:"none"}}>Reset Sample</button>
                 </div>
               </div>
               <div style={{padding:"8px 12px",background:"#F3F4F6",borderBottom:"1px solid #E5E7EB",display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
-                <button onClick={()=>insertText("# ", "", "Heading 1")} style={btnStyle}>H1</button>
-                <button onClick={()=>insertText("## ", "", "Heading 2")} style={btnStyle}>H2</button>
+                <button onClick={()=>insertText("# ", "", "")} style={btnStyle}>H1</button>
+                <button onClick={()=>insertText("## ", "", "")} style={btnStyle}>H2</button>
                 <div style={{width:1, height:16, background:"#D1D5DB", margin:"0 2px"}}/>
                 <button onClick={()=>insertText("**", "**", "bold")} style={btnStyle}><b>B</b></button>
                 <button onClick={()=>insertText("*", "*", "italic")} style={btnStyle}><i>I</i></button>
@@ -692,9 +912,9 @@ export default function App() {
                 <div style={{width:1, height:16, background:"#D1D5DB", margin:"0 2px"}}/>
                 <button onClick={()=>insertText("\n---\n", "", "")} style={btnStyle}>➖ Divider</button>
                 <div style={{width:1, height:16, background:"#D1D5DB", margin:"0 2px"}}/>
-                <button onClick={()=>insertText("\n::: card-simple\nICON: ✉️\n### Title\nBody text\nLINK: Link Text (https://)\n:::\n", "", "")} style={btnStyle}>📇 Simple</button>
-                <button onClick={()=>insertText("\n::: card-feature\nICON: 🎓\n### Title\nBody text\n:::\n", "", "")} style={btnStyle}>⭐ Feature</button>
-                <button onClick={()=>insertText("\n::: card-action\nICON: 🚀\n### Title\nBody text\nLINK: Explore (https://)\n:::\n", "", "")} style={btnStyle}>⚡ Action</button>
+                <button onClick={()=>insertText("\n::: card-simple\n### Title\nBody text\nLINK: Link Text (https://)\n:::\n", "", "")} style={btnStyle}>📇 Simple</button>
+                <button onClick={()=>insertText("\n::: card-feature\n### Title\nBody text\n:::\n", "", "")} style={btnStyle}>⭐ Feature</button>
+                <button onClick={()=>insertText("\n::: card-action\n### Title\nBody text\nLINK: Explore (https://)\n:::\n", "", "")} style={btnStyle}>⚡ Action</button>
               </div>
               <textarea ref={textareaRef} value={content} onChange={e=>setContent(e.target.value)} spellCheck={false} style={{
                 flex:1,padding:16,border:"none",outline:"none",resize:"none",
@@ -706,7 +926,7 @@ export default function App() {
           )}
           {(view==="split"||view==="preview")&&(
             <div style={{flex:1,overflow:"auto",background:t.css.pageBg}}>
-              <Preview nodes={nodes} t={t} />
+              <Preview nodes={nodes} t={t} isLayoutMode={isLayoutMode} onUpdateNodes={handleUpdateNodes} />
             </div>
           )}
         </div>
